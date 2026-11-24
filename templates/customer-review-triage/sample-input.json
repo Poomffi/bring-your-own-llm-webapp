@@ -1,0 +1,20 @@
+{
+  "reviews": [
+    {
+      "id": "R1",
+      "text": "Delivery took five days longer than expected. The product works fine."
+    },
+    {
+      "id": "R2",
+      "text": "The box arrived crushed, but the item still works."
+    },
+    {
+      "id": "R3",
+      "text": "It arrived late and the box was torn."
+    },
+    {
+      "id": "R4",
+      "text": "Fine, I guess."
+    }
+  ]
+}

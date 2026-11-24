@@ -1,0 +1,33 @@
+{
+  "result": {
+    "rows": [
+      {
+        "category": "late_delivery",
+        "review_id": "R1",
+        "excerpt": "Delivery took five days longer than expected."
+      },
+      {
+        "category": "damaged_packaging",
+        "review_id": "R2",
+        "excerpt": "The box arrived crushed"
+      },
+      {
+        "category": "late_delivery",
+        "review_id": "R3",
+        "excerpt": "It arrived late"
+      },
+      {
+        "category": "damaged_packaging",
+        "review_id": "R3",
+        "excerpt": "the box was torn"
+      }
+    ],
+    "unclassified_review_ids": [
+      "R4"
+    ]
+  },
+  "issue_counts": {
+    "late_delivery": 2,
+    "damaged_packaging": 2
+  }
+}

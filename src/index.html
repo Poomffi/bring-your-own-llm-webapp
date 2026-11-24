@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analyze text · Bring Your Own LLM</title>
+<script>
+  try {
+    const theme = localStorage.getItem('byollm-color-theme');
+    if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+  } catch {}
+</script>
+<style>
+  :root {
+    color-scheme: light dark;
+    font: 16px/1.6 system-ui, sans-serif;
+    --page: light-dark(#eef2f0, #111a19);
+    --text: light-dark(#172832, #e8f2ed);
+    --muted: light-dark(#445a55, #afc5bb);
+    --card: light-dark(#fff, #192522);
+    --card-border: light-dark(#d0dcd5, #394c44);
+    --input: light-dark(#fff, #131d1b);
+    --input-border: light-dark(#a4b9af, #647d71);
+    --primary: light-dark(#175748, #9ee1c6);
+    --primary-text: light-dark(#fff, #132c22);
+    --secondary: light-dark(#eff5f1, #263a33);
+    --secondary-border: light-dark(#cbdbd1, #587367);
+    --accent: light-dark(#175748, #a9e7ce);
+    --focus: light-dark(#357da2, #9bd7fa);
+    --status-bg: light-dark(#f6faf8, #1c2d27);
+    --status-border: light-dark(#cadbd3, #50695e);
+    --error-bg: light-dark(#fff5f2, #372622);
+    --error-border: light-dark(#d8a398, #976858);
+    --invalid: light-dark(#a7402d, #ffae9c);
+    --connect-border: light-dark(transparent, #73857d);
+    color: var(--text);
+    background: var(--page);
+  }
+  :root[data-theme="light"] { color-scheme: light; }
+  :root[data-theme="dark"] { color-scheme: dark; }
+  .page-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
+  .theme-control { display: flex; align-items: center; gap: .5rem; }
+  .theme-control label, .theme-control select { margin: 0; }
+  .theme-control label { color: var(--muted); font-size: .9rem; }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  main { max-width: 46rem; margin: clamp(1.5rem, 8vw, 5rem) auto; padding: 0 1rem; }
+  h1, h2, p { margin: 0; }
+  h1 { font-size: clamp(2rem, 6vw, 3rem); line-height: 1.1; letter-spacing: -.05em; }
+  h2 { font-size: 1.1rem; }
+  .card { margin-top: 1.25rem; padding: clamp(1rem, 4vw, 2rem); border: 1px solid var(--card-border); border-radius: 1rem; background: var(--card); }
+  .account, .actions { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; }
+  .account { justify-content: space-between; margin-top: .75rem; }
+  .muted, #status, #metadata { color: var(--muted); font-size: .9rem; }
+  #connect, #choose-chatgpt { color: #fff; background: #191919; border-color: var(--connect-border); }
+  .account-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+  select { display: block; width: 100%; margin-bottom: 1rem; padding: .5rem; border: 1px solid var(--input-border); background: var(--input); border-radius: .5rem; color: inherit; font: inherit; }
+  .actions + p { margin-top: .5rem; }
+  label { display: block; margin-bottom: .5rem; font-weight: 650; }
+  textarea { display: block; width: 100%; min-height: 11rem; resize: vertical; font: inherit; padding: .75rem; border: 1px solid var(--input-border); background: var(--input); border-radius: .5rem; color: inherit; }
+  .actions { margin-top: 1rem; }
+  button { font: inherit; font-weight: 650; border: 1px solid transparent; border-radius: .5rem; padding: .5rem .9rem; }
+  button:disabled { opacity: .6; }
+  #submit { display: inline-flex; align-items: center; gap: .5rem; }
+  #submit[aria-busy="true"] { opacity: 1; }
+  .submit-spinner:not([hidden]) {
+    width: 1em;
+    height: 1em;
+    flex: none;
+    border: 2px solid currentColor;
+    border-inline-end-color: transparent;
+    border-radius: 50%;
+    animation: submit-spin .75s linear infinite;
+  }
+  @keyframes submit-spin { to { transform: rotate(1turn); } }
+  @media (prefers-reduced-motion: reduce) { .submit-spinner:not([hidden]) { animation: none; } }
+  .primary { color: var(--primary-text); background: var(--primary); }
+  .secondary { color: var(--accent); background: var(--secondary); border-color: var(--secondary-border); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+  .activity { margin-top: 1rem; padding: .8rem 1rem; border: 1px solid var(--status-border); border-radius: .65rem; background: var(--status-bg); }
+  .activity-header { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
+  .activity h2 { font-size: .85rem; color: var(--muted); }
+  #activity-stage { font-weight: 650; }
+  #message, #activity-time { color: var(--muted); font-size: .85rem; }
+  #activity-time { font-variant-numeric: tabular-nums; }
+  .activity[data-error="true"] { background: var(--error-bg); border-color: var(--error-border); }
+  #result a { margin-inline: .28em; font-size: .82em; font-weight: 650; }
+  #result { margin-top: .75rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #metadata { margin-top: .75rem; overflow-wrap: anywhere; }
+  [hidden] { display: none !important; }
+  .connection-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+  .connection-card { display: grid; grid-template-rows: auto 1fr auto; justify-items: start; gap: .75rem; margin: 0; padding: 1.25rem; }
+  #gemini-form { display: grid; width: 100%; gap: .5rem; justify-items: start; }
+  #gemini-key { box-sizing: border-box; width: 100%; font: inherit; padding: .6rem; border: 1px solid var(--input-border); border-radius: .5rem; background: var(--input); color: inherit; }
+  #chooser-status { margin-top: 1rem; }
+  @media (max-width: 560px) { .connection-grid { grid-template-columns: 1fr; } }
+  .review-fields { margin-top: 1rem; }
+  .review-list { display: grid; gap: .5rem; margin-top: .5rem; }
+  .review-row { display: grid; grid-template-columns: minmax(9rem, 1fr) minmax(4.5rem, .55fr) minmax(10rem, 2fr) auto; gap: .45rem; align-items: center; }
+  .review-row select, .review-row input { width: 100%; margin: 0; min-width: 0; padding: .5rem; border: 1px solid var(--input-border); background: var(--input); border-radius: .5rem; color: inherit; font: inherit; }
+  .review-row[data-invalid="true"] { outline: 2px solid var(--invalid); outline-offset: 3px; border-radius: .25rem; }
+  .review-source { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .35rem .75rem; align-items: baseline; }
+  .review-source label { margin: 0; font-weight: 400; }
+  @media (max-width: 640px) { .review-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 350px) { .review-row { grid-template-columns: minmax(0, 1fr); } }
+  a { color: var(--accent); }
+</style>
+<main>
+  <header>
+    <div class="page-heading">
+      <h1 id="page-title" tabindex="-1">Choose how to connect</h1>
+      <div class="theme-control">
+        <label for="theme">Theme</label>
+        <select id="theme">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </div>
+    </div>
+    <div class="account" id="workspace-account" hidden>
+      <p id="status" role="status">Checking ChatGPT connection…</p>
+      <div class="account-actions">
+        <button id="connect" class="primary" type="button" data-oai-siwc-button disabled>Continue with ChatGPT</button>
+        <button id="disconnect" class="secondary" type="button">Connection options</button>
+      </div>
+    </div>
+  </header>
+
+  <section id="connection-chooser" aria-labelledby="page-title">
+    <div class="connection-grid">
+      <article class="card connection-card">
+        <h2>Sign in with an AI account</h2>
+        <p class="muted">Use an eligible ChatGPT plan with the models available to your account.</p>
+        <button id="choose-chatgpt" class="primary" type="button" data-oai-siwc-button disabled>Continue with ChatGPT</button>
+      </article>
+      <article class="card connection-card">
+        <h2>Use your own API key</h2>
+        <p class="muted">Use the quota or billing of the project that issued your key.</p>
+        <form id="gemini-form" autocomplete="off">
+          <label for="gemini-key">Gemini API key</label>
+          <input id="gemini-key" type="password" spellcheck="false" maxlength="512" required disabled>
+          <button id="choose-gemini" class="primary" type="submit" disabled>Connect Gemini</button>
+        </form>
+      </article>
+      <article class="card connection-card">
+        <h2>Run a model locally</h2>
+        <p class="muted">Use a downloaded model on this computer.</p>
+        <p class="muted">Ollama planned</p>
+      </article>
+      <article class="card connection-card">
+        <h2>Try a demo</h2>
+        <p class="muted">Review synthetic results and try CSV export. No account or API usage.</p>
+        <button id="choose-demo" class="secondary" type="button" disabled>Open review demo</button>
+      </article>
+    </div>
+    <p id="chooser-status" class="muted" role="status" hidden></p>
+  </section>
+
+  <div class="account" id="demo-account" hidden>
+    <p class="muted">Demo · No API usage</p>
+    <button id="demo-back" class="secondary" type="button">Connection options</button>
+  </div>
+
+  <form class="card" id="analysis" hidden>
+    <label for="mode">Task</label>
+    <select id="mode" disabled>
+      <option value="summarize">Summarize text</option>
+      <option id="search-option" value="web_search">Search the web</option>
+      <option value="review_triage">Triage customer reviews</option>
+    </select>
+    <div id="model-field" hidden>
+      <label for="model">Model</label>
+      <select id="model"></select>
+    </div>
+    <label for="text" id="text-label">Text to analyze</label>
+    <textarea id="text" maxlength="4000" required>On Monday, the Lakeside library extended its weekend opening hours. The trial will run for six weeks. Staff will review visitor counts before deciding whether to keep the new schedule.</textarea>
+    <div class="actions">
+      <button id="submit" class="primary" aria-describedby="submit-hint" disabled><span id="submit-spinner" class="submit-spinner" aria-hidden="true" hidden></span><span id="submit-label">Analyze with AI</span></button>
+      <button id="review-preview" class="secondary" type="button" hidden>Preview sample result</button>
+      <a id="chatgpt-usage" href="https://chatgpt.com/settings/usage" target="_blank" rel="noreferrer">Manage ChatGPT usage</a>
+    </div>
+    <p id="submit-hint" class="muted" lang="th">กำลังตรวจสอบการเชื่อมต่อ ChatGPT</p>
+    <p id="provider-notice" class="muted">Analysis sends your text to OpenAI and uses the connected ChatGPT plan.</p>
+    <p id="gemini-usage" class="muted" hidden><a href="https://aistudio.google.com/usage" target="_blank" rel="noreferrer">View Gemini API usage</a></p>
+    <section class="activity" id="activity" aria-labelledby="activity-heading">
+      <div class="activity-header">
+        <h2 id="activity-heading" lang="th">สถานะการทำงาน</h2>
+        <span id="activity-time" aria-hidden="true" hidden></span>
+      </div>
+      <div role="status" aria-atomic="true" lang="th">
+        <p id="activity-stage">กำลังตรวจการเชื่อมต่อ</p>
+        <p id="message" hidden></p>
+      </div>
+    </section>
+  </form>
+
+  <section class="card" id="output" aria-labelledby="output-title" hidden>
+    <h2 id="output-title">Analysis</h2>
+    <p id="result"></p>
+    <p id="metadata"></p>
+  </section>
+  <section id="review-panel" class="card" aria-labelledby="review-heading" hidden>
+    <h2 id="review-heading">Review classifications</h2>
+    <p id="review-origin" class="muted"></p>
+    <p id="review-counts" role="status"></p>
+    <div class="review-fields">
+      <h3>Source reviews</h3>
+      <div class="review-list" id="review-sources"></div>
+    </div>
+    <div class="review-fields">
+      <h3>Classified rows</h3>
+      <div class="review-list" id="review-rows"></div>
+      <div class="actions">
+        <button type="button" id="review-add" class="secondary">Add row</button>
+        <button type="button" id="review-check" class="secondary">Check rows</button>
+        <button type="button" id="review-download" class="primary" disabled>Download CSV</button>
+      </div>
+      <p id="review-feedback" role="status"></p>
+    </div>
+  </section>
+</main>
+<script src="/review.js"></script>
+<script>
+  const themeSelect = document.getElementById('theme');
+  themeSelect.value = document.documentElement.dataset.theme ?? 'system';
+  themeSelect.addEventListener('change', () => {
+    const theme = themeSelect.value;
+    if (theme === 'system') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = theme;
+    try {
+      if (theme === 'system') localStorage.removeItem('byollm-color-theme');
+      else localStorage.setItem('byollm-color-theme', theme);
+    } catch {}
+  });
+
+  const pageTitle = document.getElementById('page-title');
+  const chooser = document.getElementById('connection-chooser');
+  const chooserStatus = document.getElementById('chooser-status');
+  const chooseChatgpt = document.getElementById('choose-chatgpt');
+  const geminiForm = document.getElementById('gemini-form');
+  const geminiKey = document.getElementById('gemini-key');
+  const chooseGemini = document.getElementById('choose-gemini');
+  const searchOption = document.getElementById('search-option');
+  const providerNotice = document.getElementById('provider-notice');
+  const chatgptUsage = document.getElementById('chatgpt-usage');
+  const geminiUsage = document.getElementById('gemini-usage');
+  let provider = null;
+  const chooseDemo = document.getElementById('choose-demo');
+  const workspaceAccount = document.getElementById('workspace-account');
+  const demoAccount = document.getElementById('demo-account');
+  const demoBack = document.getElementById('demo-back');
+  let screen = 'chooser';
+
+  const form = document.getElementById('analysis');
+  const input = document.getElementById('text');
+  const mode = document.getElementById('mode');
+  const textLabel = document.getElementById('text-label');
+  const summarySample = input.defaultValue;
+  const searchSample = 'What are the objectives of the Artemis II mission? Use official NASA sources.';
+
+  const preview = document.getElementById('review-preview');
+
+  function showTask() {
+    const triage = mode.value === 'review_triage';
+    const search = mode.value === 'web_search';
+    textLabel.textContent = triage ? 'Customer reviews, one per line' : search ? 'Question to research' : 'Text to analyze';
+    submitLabel.textContent = triage ? 'Classify reviews with AI' : search ? 'Search with AI' : 'Analyze with AI';
+    preview.hidden = !triage;
+  }
+  const model = document.getElementById('model');
+  const modelField = document.getElementById('model-field');
+  const submit = document.getElementById('submit');
+  const submitSpinner = document.getElementById('submit-spinner');
+  const submitLabel = document.getElementById('submit-label');
+  const submitHint = document.getElementById('submit-hint');
+  const connect = document.getElementById('connect');
+  const disconnect = document.getElementById('disconnect');
+  const statusLine = document.getElementById('status');
+  const message = document.getElementById('message');
+  const activity = document.getElementById('activity');
+  const activityStage = document.getElementById('activity-stage');
+  const activityTime = document.getElementById('activity-time');
+  let startedAt = null;
+  const stages = {
+    idle: ['รอเชื่อมบัญชี ChatGPT', 'กด Continue with ChatGPT เพื่อเริ่ม'],
+    ready: ['พร้อมใช้งาน', 'เลือกงานและโมเดล แล้วส่งคำขอ'],
+    opening: ['กำลังเปิดหน้าขออนุญาตของ OpenAI', 'เลือกบัญชีและอนุญาตสิทธิ์ในหน้าที่เปิดขึ้น'],
+    'exchange-pending': ['OpenAI ส่งคุณกลับมาที่แอปแล้ว', 'กำลังยืนยันการอนุญาตกับ OpenAI'],
+    'identity-pending': ['กำลังตรวจสอบบัญชี ChatGPT', 'แอปกำลังตรวจสอบข้อมูลที่ OpenAI ส่งกลับมา'],
+    'models-pending': ['กำลังโหลดโมเดล', 'แอปกำลังขอรายการโมเดลที่บัญชีนี้ใช้ได้'],
+    sending: ['กำลังส่งข้อความไปยัง OpenAI', 'กำลังรอ OpenAI ยืนยันว่าได้รับคำขอ'],
+    'sending-gemini': ['ส่งคำขอวิเคราะห์ไปยัง Gemini', 'กำลังรอคำตอบจาก Google'],
+    received: ['OpenAI ได้รับข้อความแล้ว', 'กำลังรอให้โมเดลเริ่มตอบ'],
+    processing: ['โมเดลกำลังประมวลผล', 'แอปกำลังรอคำตอบจากโมเดล'],
+    searching: ['กำลังค้นเว็บ', 'OpenAI กำลังค้นหาแหล่งข้อมูล'],
+    'search-complete': ['ได้รับผลค้นหาแล้ว', 'กำลังรอให้โมเดลสรุปคำตอบ'],
+    writing: ['โมเดลเริ่มตอบแล้ว', 'แอปกำลังรับคำตอบ'],
+    complete: ['วิเคราะห์เสร็จแล้ว', 'ดูผลด้านล่าง'],
+    'reviews-ready': ['จัดหมวดรีวิวเสร็จแล้ว', 'ตรวจและแก้ผลด้านล่างก่อนส่งออก'],
+    'sample-ready': ['เปิดผลตัวอย่างแล้ว', 'ทดลองแก้แถว ตรวจผล และส่งออก CSV ได้'],
+    'research-complete': ['ค้นและสรุปเสร็จแล้ว', 'ดูคำตอบและแหล่งอ้างอิงด้านล่าง'],
+    disconnecting: ['กำลังตัดการเชื่อมต่อ', ''],
+    disconnected: ['ตัดการเชื่อมต่อแล้ว', 'เลือกวิธีเชื่อมต่อเพื่อวิเคราะห์อีกครั้ง'],
+    error: ['ทำรายการไม่สำเร็จ', ''],
+  };
+  const connectionMessages = {
+    'no-plan': 'ลงชื่อเข้าใช้แล้ว กด Enable ChatGPT plan usage เพื่อเปิดสิทธิ์วิเคราะห์',
+    declined: 'การอนุญาตถูกปฏิเสธ กด Continue with ChatGPT เพื่อลองอีกครั้ง',
+    incomplete: 'การลงชื่อเข้าใช้ไม่ครบขั้นตอน กรุณาเริ่มใหม่',
+    expired: 'การลงชื่อเข้าใช้หมดอายุหรือไม่ตรงกับคำขอ กรุณาเริ่มใหม่',
+    failed: 'OpenAI ลงชื่อเข้าใช้ไม่สำเร็จ กรุณาลองอีกครั้ง',
+    exchange: 'แอปรอการยืนยันสิทธิ์จาก OpenAI หรือไม่ได้รับข้อมูลที่ใช้ได้ กรุณาลงชื่อเข้าใช้อีกครั้ง',
+    identity: 'แอปตรวจสอบบัญชี ChatGPT ไม่สำเร็จ กรุณาลงชื่อเข้าใช้อีกครั้ง',
+    ineligible: 'ตรวจว่าบัญชีและ workspace นี้มีสิทธิ์ใช้แพ็กเกจ ChatGPT กับแอปหรือไม่',
+    models: 'แอปโหลดรายการโมเดลไม่สำเร็จ กรุณาลองเชื่อมต่ออีกครั้ง',
+  };
+
+  function showStage(stage, detail) {
+    const [label, description] = stages[stage];
+    activityStage.textContent = label;
+    message.textContent = detail ?? description;
+    message.hidden = !message.textContent;
+    activity.dataset.error = String(stage === 'error');
+  }
+
+  function showElapsed() {
+    activityTime.hidden = startedAt === null;
+    if (startedAt !== null) {
+      activityTime.textContent = Math.floor((performance.now() - startedAt) / 1000) + ' วินาที';
+    }
+  }
+  setInterval(showElapsed, 1000);
+  const output = document.getElementById('output');
+  const draftKey = 'byollm-chatgpt-draft';
+  let ready = false;
+
+  async function request(path, options) {
+    const response = await fetch(path, { signal: AbortSignal.timeout(10000), ...options });
+    if (!response.ok) {
+      const error = new Error(await response.text() || 'The app could not complete the request.');
+      error.status = response.status;
+      throw error;
+    }
+    return response;
+  }
+
+  function showConnection(session) {
+    model.replaceChildren(...session.models.map(item => new Option(item.display_name, item.slug)));
+    provider = session.provider ?? null;
+    const isGemini = provider === 'gemini';
+    searchOption.hidden = isGemini;
+    searchOption.disabled = isGemini;
+    if (isGemini && mode.value === 'web_search') {
+      mode.value = 'summarize';
+      if (input.value === searchSample) input.value = summarySample;
+      showTask();
+    }
+    chatgptUsage.hidden = isGemini;
+    geminiUsage.hidden = !isGemini;
+    providerNotice.textContent = isGemini
+      ? 'Analysis sends your text to Google. Usage counts toward the quota or billing of the project that issued this key.'
+      : 'Analysis sends your text to OpenAI and uses the connected ChatGPT plan.';
+    ready = (isGemini || session.plan_enabled) && model.options.length > 0;
+    statusLine.textContent = isGemini ? 'Connected to Gemini API'
+      : ready ? 'Using ChatGPT plan'
+      : session.plan_enabled ? 'No ChatGPT models available'
+      : session.signed_in ? 'ChatGPT plan usage is off' : 'ChatGPT disconnected';
+    connect.hidden = ready;
+    connect.textContent = session.signed_in && !session.plan_enabled ? 'Enable ChatGPT plan usage' : 'Continue with ChatGPT';
+    disconnect.textContent = (isGemini || session.signed_in) ? 'Disconnect and change' : 'Connection options';
+    modelField.hidden = !ready;
+    submitHint.textContent = session.plan_enabled
+      ? 'ยังไม่มีโมเดลพร้อมใช้ในบัญชีนี้ ลองเชื่อมต่อใหม่'
+      : session.signed_in
+        ? 'เปิดสิทธิ์ ChatGPT plan usage ก่อนเริ่มใช้งาน'
+        : 'เชื่อมบัญชี ChatGPT ก่อนเริ่มใช้งาน';
+  }
+
+  function showChooserStatus(text) {
+    chooserStatus.textContent = text;
+    chooserStatus.hidden = !text;
+  }
+
+  function showScreen(next, focus = false) {
+    screen = next;
+    chooser.hidden = next !== 'chooser';
+    workspaceAccount.hidden = next !== 'workspace';
+    form.hidden = next !== 'workspace';
+    demoAccount.hidden = next !== 'demo';
+    pageTitle.textContent = next === 'chooser' ? 'Choose how to connect'
+      : next === 'demo' ? 'Review demo' : 'Analyze text';
+    if (next === 'chooser') {
+      output.hidden = true;
+      reviewEditor.hide();
+      showChooserStatus('');
+    }
+    if (focus) pageTitle.focus();
+  }
+
+  function setBusy(busy) {
+    submit.disabled = busy || !ready;
+    submitHint.hidden = busy || ready;
+    connect.disabled = busy;
+    disconnect.disabled = busy;
+    mode.disabled = busy;
+    preview.disabled = busy;
+    chooseChatgpt.disabled = busy;
+    chooseDemo.disabled = busy;
+    geminiKey.disabled = busy;
+    chooseGemini.disabled = busy;
+    startedAt = busy ? (startedAt ?? performance.now()) : null;
+    showElapsed();
+  }
+
+  async function syncSession() {
+    const response = await request('/session');
+    const session = await response.json();
+    showConnection(session);
+    return session;
+  }
+
+  async function initialize() {
+    let outcome = new URLSearchParams(location.search).get('connection');
+    if (outcome) {
+      showScreen('workspace');
+      history.replaceState(null, '', '/');
+      try {
+        const draft = sessionStorage.getItem(draftKey);
+        sessionStorage.removeItem(draftKey);
+        const savedMode = sessionStorage.getItem(draftKey + '-mode');
+        sessionStorage.removeItem(draftKey + '-mode');
+        mode.value = ['web_search', 'review_triage'].includes(savedMode) ? savedMode : 'summarize';
+        if (draft !== null) input.value = draft;
+        showTask();
+      } catch {}
+    }
+    let session = await syncSession();
+    const waitForConnection = outcome === 'pending' || session.connection_phase?.endsWith('-pending');
+    if ((session.provider || waitForConnection) && screen !== 'demo') showScreen('workspace');
+    if (waitForConnection) {
+      const deadline = performance.now() + 40000;
+      setBusy(true);
+      while (session.connection_phase?.endsWith('-pending')) {
+        showStage(session.connection_phase);
+        if (performance.now() >= deadline) {
+          showStage('error', 'การยืนยันบัญชีใช้เวลานานเกินไป กรุณาลองเชื่อมต่อใหม่');
+          return;
+        }
+        await new Promise(resolve => setTimeout(resolve, 600));
+        session = await syncSession();
+      }
+      outcome = session.connection_phase ?? 'expired';
+    }
+    if (connectionMessages[outcome]) {
+      showStage('error', connectionMessages[outcome]);
+    } else {
+      showStage(ready ? 'ready' : 'idle');
+    }
+  }
+
+  function reportError(error) {
+    const detail = error.name === 'TimeoutError' ? 'หมดเวลารอการตอบกลับ ตรวจสถานะก่อนลองอีกครั้ง' : error.message;
+    if (screen === 'chooser') showChooserStatus(detail);
+    else showStage('error', detail);
+  }
+
+  initialize().catch(error => {
+    statusLine.textContent = 'Connection status unavailable';
+    submitHint.textContent = 'ตรวจสอบการเชื่อมต่อไม่ได้ ลองเชื่อมบัญชีอีกครั้ง';
+    reportError(error);
+  }).finally(() => setBusy(false));
+
+  window.addEventListener('pageshow', event => {
+    if (event.persisted) {
+      setBusy(true);
+      initialize().catch(reportError).finally(() => setBusy(false));
+    }
+  });
+
+  async function readAnalysis(response) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          const packet = JSON.parse(line);
+          if (packet.stage === 'complete') return packet.result;
+          if (packet.stage === 'error') {
+            const error = new Error(packet.message);
+            error.status = packet.status;
+            throw error;
+          }
+          if (stages[packet.stage]) showStage(packet.stage);
+        }
+      }
+      throw new Error('การเชื่อมต่อจบลงก่อนที่แอปจะได้รับผลวิเคราะห์');
+    } finally {
+      reader.cancel().catch(() => {});
+    }
+  }
+
+  async function beginConnect() {
+    setBusy(true);
+    if (screen === 'chooser') showChooserStatus('Opening ChatGPT sign-in…');
+    else showStage('opening');
+    try {
+      geminiKey.value = '';
+      const response = await request('/connect', { method: 'POST' });
+      const { url } = await response.json();
+      try {
+        sessionStorage.setItem(draftKey, input.value);
+        sessionStorage.setItem(draftKey + '-mode', mode.value);
+      } catch {}
+      location.assign(url);
+    } catch (error) {
+      reportError(error);
+      setBusy(false);
+    }
+  }
+  connect.addEventListener('click', beginConnect);
+  chooseChatgpt.addEventListener('click', beginConnect);
+
+  geminiForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (screen !== 'chooser' || chooseGemini.disabled) return;
+    const apiKey = geminiKey.value.trim();
+    geminiKey.value = '';
+    setBusy(true);
+    showChooserStatus('Checking the key and model with Google…');
+    try {
+      const response = await request('/connect/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(18000),
+        body: JSON.stringify({ api_key: apiKey }),
+      });
+      showConnection(await response.json());
+      showScreen('workspace', true);
+      showStage('ready');
+    } catch (error) {
+      reportError(error);
+    } finally {
+      setBusy(false);
+      if (screen === 'chooser') geminiKey.focus();
+    }
+  });
+
+  chooseDemo.addEventListener('click', async () => {
+    setBusy(true);
+    geminiKey.value = '';
+    showChooserStatus('Loading the sample…');
+    try {
+      const response = await request('/review/sample');
+      const draft = await response.json();
+      showScreen('demo', true);
+      reviewEditor.show(draft, 'Manually prepared sample result');
+    } catch (error) {
+      reportError(error);
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  demoBack.addEventListener('click', () => showScreen('chooser', true));
+
+  mode.addEventListener('change', () => {
+    if (!input.value || input.value === summarySample || input.value === searchSample) {
+      input.value = mode.value === 'review_triage' ? '' : mode.value === 'web_search' ? searchSample : summarySample;
+    }
+    if (mode.value !== 'review_triage') reviewEditor.hide();
+    showTask();
+  });
+
+  preview.addEventListener('click', async () => {
+    setBusy(true);
+    try {
+      const response = await request('/review/sample');
+      const draft = await response.json();
+      if (!input.value.trim()) input.value = draft.input.reviews.map(item => item.text).join('\n');
+      output.hidden = true;
+      reviewEditor.show(draft, 'Manually prepared sample result');
+      showStage('sample-ready');
+    } catch (error) {
+      reportError(error);
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  function renderResult(result) {
+    const answer = document.getElementById('result');
+    answer.replaceChildren();
+    const characters = Array.from(result.text);
+    const citations = [...(result.citations ?? [])].sort((a, b) => a.end_index - b.end_index);
+    let offset = 0;
+    for (const citation of citations) {
+      const end = Math.max(offset, Math.min(characters.length, citation.end_index));
+      answer.append(characters.slice(offset, end).join(''));
+      const link = document.createElement('a');
+      link.href = citation.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = citation.title;
+      answer.append(link);
+      offset = end;
+    }
+    answer.append(characters.slice(offset).join(''));
+  }
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (screen !== 'workspace' || !ready || submit.disabled) return;
+    setBusy(true);
+    output.hidden = true;
+    reviewEditor.hide();
+    showStage(provider === 'gemini' ? 'sending-gemini' : 'sending');
+    const selectedMode = mode.value;
+    try {
+      submit.setAttribute('aria-busy', 'true');
+      submitSpinner.hidden = false;
+      submitLabel.textContent = selectedMode === 'web_search' ? 'Searching…'
+        : selectedMode === 'review_triage' ? 'Classifying reviews…' : 'Analyzing…';
+      const response = await request('/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(85000),
+        body: JSON.stringify({ text: input.value, model: model.value, mode: selectedMode }),
+      });
+      const result = await readAnalysis(response);
+      if (result.review) {
+        reviewEditor.show(result.review, [result.model, result.response_id].filter(Boolean).join(' · '));
+        showStage('reviews-ready');
+        return;
+      }
+      renderResult(result);
+      document.getElementById('metadata').textContent = [result.model, result.response_id].filter(Boolean).join(' · ');
+      output.hidden = false;
+      showStage(selectedMode === 'web_search' ? 'research-complete' : 'complete',
+        selectedMode === 'web_search' && !result.citations?.length ? 'OpenAI ส่งคำตอบกลับมาโดยไม่มีลิงก์อ้างอิง' : undefined);
+    } catch (error) {
+      if (error.status === 401) {
+        const wasGemini = provider === 'gemini';
+        try { await syncSession(); }
+        catch { showConnection({ signed_in: false, plan_enabled: false, models: [] }); }
+        if (wasGemini && !ready) showScreen('chooser', true);
+      }
+      reportError(error);
+    } finally {
+      submit.removeAttribute('aria-busy');
+      submitSpinner.hidden = true;
+      showTask();
+      setBusy(false);
+    }
+  });
+
+  disconnect.addEventListener('click', async () => {
+    setBusy(true);
+    showStage('disconnecting');
+    try {
+      await request('/disconnect', { method: 'POST' });
+      showConnection({ signed_in: false, plan_enabled: false, models: [] });
+      showStage('disconnected');
+      showScreen('chooser', true);
+    } catch (error) {
+      reportError(error);
+    } finally {
+      setBusy(false);
+    }
+  });
+</script>
+</html>

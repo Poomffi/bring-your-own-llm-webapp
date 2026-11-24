@@ -1,0 +1,20 @@
+[package]
+name = "bring-your-own-llm-webapp"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+axum = "0.8"
+base64 = "0.22"
+eventsource-stream = "0.2"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
+rand = "0.8"
+review-triage = { path = "starters/rust" }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+uuid = { version = "1", features = ["v4"] }

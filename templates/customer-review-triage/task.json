@@ -1,0 +1,131 @@
+{
+  "id": "customer-review-triage",
+  "title": "Customer review triage",
+  "categories": [
+    {
+      "id": "late_delivery",
+      "label": "Late delivery",
+      "description": "A delivery arrived later than expected or promised."
+    },
+    {
+      "id": "damaged_packaging",
+      "label": "Damaged packaging",
+      "description": "Shipping packaging arrived torn, crushed, or otherwise damaged."
+    }
+  ],
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "reviews"
+    ],
+    "properties": {
+      "reviews": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "text"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Stable review ID, unique in this batch."
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Original customer review text."
+            }
+          }
+        }
+      }
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "rows",
+      "unclassified_review_ids"
+    ],
+    "properties": {
+      "rows": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "category",
+            "review_id",
+            "excerpt"
+          ],
+          "properties": {
+            "category": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Category ID from categories."
+            },
+            "review_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "ID of the source review."
+            },
+            "excerpt": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exact, non-empty substring of the source review."
+            }
+          }
+        }
+      },
+      "unclassified_review_ids": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Source review ID with no supported category."
+        }
+      }
+    }
+  },
+  "validation_rules": [
+    {
+      "id": "unique_input_id",
+      "rule": "Review IDs must be unique and nonblank."
+    },
+    {
+      "id": "known_category_and_review",
+      "rule": "Every result row must use a configured category and an existing review ID."
+    },
+    {
+      "id": "exact_evidence",
+      "rule": "Each excerpt must be nonblank and occur verbatim in the review identified by review_id."
+    },
+    {
+      "id": "unique_category_per_review",
+      "rule": "Allow multiple categories per review and at most one row for each category and review ID pair."
+    },
+    {
+      "id": "complete_review_coverage",
+      "rule": "Every input review must appear in at least one row or in unclassified_review_ids. These groups cannot overlap."
+    },
+    {
+      "id": "ambiguous_input",
+      "rule": "Keep reviews without evidence for a configured category in unclassified_review_ids."
+    }
+  ],
+  "review": {
+    "editable_row_fields": [
+      "category",
+      "review_id",
+      "excerpt"
+    ],
+    "allow_move_between_classified_and_unclassified": true
+  }
+}

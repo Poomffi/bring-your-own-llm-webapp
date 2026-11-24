@@ -1,0 +1,167 @@
+[
+  {
+    "id": "empty-input",
+    "expected_error": "invalid_shape",
+    "input": {
+      "reviews": []
+    },
+    "result": {
+      "rows": [],
+      "unclassified_review_ids": []
+    }
+  },
+  {
+    "id": "duplicate-input",
+    "expected_error": "duplicate_input_id",
+    "input": {
+      "reviews": [
+        {
+          "id": "R1",
+          "text": "A review."
+        },
+        {
+          "id": "R1",
+          "text": "Another review."
+        }
+      ]
+    },
+    "result": {
+      "rows": [],
+      "unclassified_review_ids": [
+        "R1"
+      ]
+    }
+  },
+  {
+    "id": "unknown-category",
+    "expected_error": "unknown_category",
+    "result": {
+      "rows": [
+        {
+          "category": "unconfigured",
+          "review_id": "R1",
+          "excerpt": "Delivery took five days longer than expected."
+        }
+      ],
+      "unclassified_review_ids": [
+        "R2",
+        "R3",
+        "R4"
+      ]
+    }
+  },
+  {
+    "id": "invalid-review-id",
+    "expected_error": "unknown_review",
+    "result": {
+      "rows": [
+        {
+          "category": "late_delivery",
+          "review_id": "R99",
+          "excerpt": "Delivery took five days longer than expected."
+        }
+      ],
+      "unclassified_review_ids": [
+        "R2",
+        "R3",
+        "R4"
+      ]
+    }
+  },
+  {
+    "id": "excerpt-missing-from-review",
+    "expected_error": "missing_excerpt",
+    "result": {
+      "rows": [
+        {
+          "category": "late_delivery",
+          "review_id": "R1",
+          "excerpt": "A made-up quote."
+        }
+      ],
+      "unclassified_review_ids": [
+        "R2",
+        "R3",
+        "R4"
+      ]
+    }
+  },
+  {
+    "id": "duplicate-category-and-review",
+    "expected_error": "duplicate_classification",
+    "result": {
+      "rows": [
+        {
+          "category": "late_delivery",
+          "review_id": "R1",
+          "excerpt": "Delivery took five days longer than expected."
+        },
+        {
+          "category": "late_delivery",
+          "review_id": "R1",
+          "excerpt": "Delivery took five days"
+        }
+      ],
+      "unclassified_review_ids": [
+        "R2",
+        "R3",
+        "R4"
+      ]
+    }
+  },
+  {
+    "id": "ambiguous-review-omitted",
+    "expected_error": "missing_review",
+    "result": {
+      "rows": [
+        {
+          "category": "late_delivery",
+          "review_id": "R1",
+          "excerpt": "Delivery took five days longer than expected."
+        }
+      ],
+      "unclassified_review_ids": [
+        "R2",
+        "R3"
+      ]
+    }
+  },
+  {
+    "id": "classified-and-unclassified",
+    "expected_error": "overlapping_review",
+    "result": {
+      "rows": [
+        {
+          "category": "late_delivery",
+          "review_id": "R1",
+          "excerpt": "Delivery took five days longer than expected."
+        }
+      ],
+      "unclassified_review_ids": [
+        "R1",
+        "R2",
+        "R3",
+        "R4"
+      ]
+    }
+  },
+  {
+    "id": "unexpected-row-field",
+    "expected_error": "invalid_shape",
+    "result": {
+      "rows": [
+        {
+          "category": "late_delivery",
+          "review_id": "R1",
+          "excerpt": "Delivery took five days longer than expected.",
+          "summary": "Extra key"
+        }
+      ],
+      "unclassified_review_ids": [
+        "R2",
+        "R3",
+        "R4"
+      ]
+    }
+  }
+]
