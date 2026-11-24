@@ -4,6 +4,8 @@ This is a research project and a collection of runnable examples for developers 
 
 The first provider experiment tests direct authorization, inference in the web app, and whether usage counts against the connected plan or organization. Customer-review triage is one worked example of structured LLM output with validation.
 
+The research covers provider authentication, billing, and deployment, with dated links to primary sources.
+
 ## Current status
 
 | Area | Progress |
